@@ -29,7 +29,7 @@ def main(symbol='ETHUSDT',
 
     symbol = symbol.upper()
     dsc = DatasetConfig(
-        base_dir=f'{market_data_base_dir}/basic/spot-kline',
+        base_dir=f'{market_data_base_dir}/kline-basic',
         cached_batch_base_dir=cached_batch_base_dir,
         symbol=symbol,
         interval=kl_interval,

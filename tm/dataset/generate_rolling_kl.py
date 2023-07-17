@@ -120,7 +120,7 @@ def build_rolling_kl(base_dir,
 
 
 if __name__ == '__main__':
-    bd = '../../data/tm/market/basic/spot-kline'
+    bd = '../../data/tm/market/kline-basic'
     split_method = DS_SPLIT_METHOD_VAL_2023
     split_names = [SPLIT_NAME_TRAIN, SPLIT_NAME_VALIDATION]
     for sym in ['BTCUSDT', 'ETHUSDT']:

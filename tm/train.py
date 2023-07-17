@@ -37,7 +37,7 @@ def main(epochs: int = 10,
     device = check_device()
 
     dsc = DatasetConfig(
-        base_dir=f'{market_data_base_dir}/basic/spot-kline',
+        base_dir=f'{market_data_base_dir}/kline-basic',
         symbol=symbol.upper(),
         interval=kl_interval,
         extra_intervals=extra_intervals_map.get(kl_interval),

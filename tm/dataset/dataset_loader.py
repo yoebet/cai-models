@@ -146,7 +146,7 @@ if __name__ == '__main__':
 
     kl_interval = '1d'
     market_base = '../../data/tm/market'
-    ds_config = DatasetConfig(f'{market_base}/basic/spot-kline',
+    ds_config = DatasetConfig(f'{market_base}/kline-basic',
                               symbol='ETHUSDT',
                               interval=kl_interval,
                               extra_intervals=extra_intervals_map.get(kl_interval),

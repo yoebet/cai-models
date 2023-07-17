@@ -51,7 +51,7 @@ def main(
     if batch_size is not None:
         ds_config.seq_len = batch_size
     if market_data_base_dir is not None:
-        ds_config.base_dir = f'{market_data_base_dir}/basic/spot-kline'
+        ds_config.base_dir = f'{market_data_base_dir}/kline-basic'
     if cached_batch_base_dir is not None:
         ds_config.cached_batch_base_dir = cached_batch_base_dir
     if use_cached_batch is not None:

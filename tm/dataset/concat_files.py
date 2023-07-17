@@ -74,7 +74,7 @@ def concat_all_intervals_symbols(base_dir,
 
 if __name__ == '__main__':
     market_base = '../../data/tm/market'
-    kline_base = f'{market_base}/basic/spot-kline'
+    kline_base = f'{market_base}/kline-basic'
     split_methods = [DS_SPLIT_METHOD_VAL_2023, None]
 
     # concat_interval_symbol(kline_base, '1d', 'BTCUSDT',

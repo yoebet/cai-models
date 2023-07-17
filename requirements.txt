@@ -6,3 +6,4 @@ fire
 onnx
 tabulate
 tensorboard
+jsonlines
