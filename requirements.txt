@@ -1,0 +1,8 @@
+numpy
+pandas
+torch
+torchdata
+fire
+onnx
+tabulate
+tensorboard
