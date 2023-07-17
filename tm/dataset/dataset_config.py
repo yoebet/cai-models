@@ -44,8 +44,8 @@ intervals_meta = {
     },
     '1h': {
         'seconds': 60 * 60,
-        'one_file': True,
-        'iterate_one_file': True,
+        'one_file': False,
+        'iterate_one_file': False,
     },
     '4h': {
         'seconds': 4 * 60 * 60,

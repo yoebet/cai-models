@@ -65,13 +65,18 @@ def eval_one_batch(model, batch: SeqBatch, encoder=False, device=None, print_det
     model.eval()
     start = time.time()
     loss_compute = build_val_loss_compute(model)
-    loss, pred_y = run_batch(model, batch, loss_compute, encoder, device)
+    is_classifier = model.generator.is_classifier
+    loss, label_y, pred_y = run_batch(model, batch, loss_compute, encoder, device)
     # close: 7
     src_cp = batch.src[:, -1, SRC_CP_IDX]
     tgt_y = batch.tgt_y
-    hit_count, s_pred_count, s_hit_count, detail = eval_predict(src_cp, tgt_y.to(src_cp.device),
-                                                                pred_y.to(src_cp.device),
-                                                                return_detail=print_detail)
+    hit_count, s_pred_count, s_hit_count, detail = eval_predict(src_cp,
+                                                                tgt_y,
+                                                                pred_y,
+                                                                label_y=label_y,
+                                                                return_detail=print_detail,
+                                                                classify=is_classifier,
+                                                                )
     seq_count = batch.src.size(0)
     hit_percent = (hit_count / seq_count) * 100.0
     s_hit_percent = (s_hit_count / s_pred_count) * 100.0

@@ -15,7 +15,7 @@ def concat_interval_symbol(base_dir,
     src_names = os.listdir(src_dir)
     src_names = filter(lambda n: n.endswith('.csv'), src_names)
     if ds_split_name is not None:
-        file_filter = filter_file_for_split(ds_split_name, ds_split_method_name)
+        file_filter = filter_file_for_split(ds_split_method_name, ds_split_name)
         src_names = filter(file_filter, src_names)
     src_names = sorted(src_names)
 

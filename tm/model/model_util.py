@@ -10,6 +10,8 @@ def clones(module, N):
 
 
 class Generator(nn.Module):
+    is_classifier = False
+
     def __init__(self,
                  d_model,
                  d_gen_ff=64,
@@ -19,7 +21,7 @@ class Generator(nn.Module):
         super(Generator, self).__init__()
         self.proj = nn.Linear(d_model, d_gen_ff, device=device)
         self.proj2 = nn.Linear(d_gen_ff, 1, device=device)
-        self.dropout = nn.Dropout(dropout)
+        # self.dropout = nn.Dropout(dropout)
 
     def forward(self,
                 x  # (batch,seq_len,d_model)
@@ -32,6 +34,36 @@ class Generator(nn.Module):
         # (batch,1)
         fx = fx.squeeze(-1)
         # (batch,)
+        return fx
+
+
+class Classifier(nn.Module):
+    is_classifier = True
+
+    def __init__(self,
+                 d_model,
+                 d_gen_ff=64,
+                 dropout=0.1,
+                 device=None,
+                 n=3,
+                 ):
+        super(Classifier, self).__init__()
+        self.proj = nn.Linear(d_model, n, device=device)
+        # self.proj2 = nn.Linear(d_gen_ff, n, device=device)
+        # self.dropout = nn.Dropout(dropout)
+        self.n = n
+
+    def forward(self,
+                x  # (batch,seq_len,d_model)
+                ):
+        x = x[:, -1, :]  # (batch,d_model)
+        fx = self.proj(x)
+        # fx = self.dropout(fx)
+        fx = F.sigmoid(fx)
+        # fx = self.proj2(fx)
+        # (batch,n)
+        # fx = F.softmax(fx, dim=-1)
+        # fx = F.log_softmax(fx, dim=-1)
         return fx
 
 

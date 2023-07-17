@@ -7,7 +7,9 @@ class ModelConfig:
                  d_ff=1024,
                  dropout=0.1,
                  max_len=128,
-                 d_gen_ff=16
+                 d_gen_ff=16,
+                 classify=False,
+                 classify_n=3,
                  ):
         self.d_input = d_input
         self.d_model = d_model
@@ -17,3 +19,5 @@ class ModelConfig:
         self.dropout = dropout
         self.max_len = max_len
         self.d_gen_ff = d_gen_ff
+        self.classify = classify
+        self.classify_n = classify_n

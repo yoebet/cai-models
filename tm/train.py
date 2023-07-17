@@ -13,20 +13,21 @@ from tm.common.utils import set_print_options, check_device
 def main(epochs: int = 10,
          steps: int = None,
          symbol='ETHUSDT',
-         kl_interval='1d',
+         kl_interval='1h',
          model_type='encoder_decoder',  # decoder_only/encoder_decoder
-         total_blocks=12,
+         classify=True,
+         total_blocks=6,
          seq_len=32,
          batch_size=10,
-         train_batches_per_step=1200,
-         val_batches_per_step=100,
+         train_batches_per_step=60,
+         val_batches_per_step=30,
          print_pred_detail=True,
-         write_tensor_board=True,
+         write_tensor_board=False,
          tensor_board_name=None,
          market_data_base_dir='../data/tm/market',
          cached_batch_base_dir='../data/tm/batch_tensor',
          ds_split_method_name=None,
-         use_cached_batch=True,
+         use_cached_batch=False,
          save_cp_every_epochs=4,
          model_name_postfix=None
          ):
@@ -64,6 +65,7 @@ def main(epochs: int = 10,
     mc = ModelConfig(
         d_input=d_input,
         blocks=blocks,
+        classify=classify,
     )
 
     out_dir = 'out'

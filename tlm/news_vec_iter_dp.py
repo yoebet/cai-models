@@ -21,7 +21,6 @@ class NewsVecIterDataPipe(IterDataPipe):
         for filename in self.datapipe:
             print(filename)
             vec_dir_the_day = os.path.dirname(filename)
-            # TODO
             vec_dir_the_day = vec_dir_the_day.replace(news_meta_dir, news_vec_dir)
             if not os.path.exists(vec_dir_the_day):
                 continue

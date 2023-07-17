@@ -13,16 +13,24 @@ from tm.model.optimizer import build_train_val_loss_compute
 
 SRC_CP_IDX = 7
 pred_percent_threshold = 0.2  # 0.2%
+classify_centre_percent = 0.2  # 0.2%
 
-pred_detail_columns = ['time', 'curr_p', 'tgt_p', 'pred_p', 'hit?', 's_pred?',
+pred_detail_columns = ['time', 'curr_p', 'tgt_p', 'pred_p', 'hit?', 's_hit?',
                        'pred_percent', 'tgt_percent', 'percent_diff']
 
+c_pred_detail_columns = ['time', 'curr_p', 'tgt_p', 'tgt_percent', 'label', 'pred', 'hit?', 's_hit?']
 
-def eval_predict(src_cp: torch.Tensor,  # (batch,)
-                 tgt_y_a: torch.Tensor,  # (batch,x)
-                 pred_y_bp: torch.Tensor,  # (batch,)
-                 return_detail=False,
-                 ):
+
+def to_time_str(d):
+    dt = datetime.utcfromtimestamp(round(d))
+    return dt.isoformat(sep=' ', timespec='minutes')
+
+
+def eval_predict_regression(src_cp: torch.Tensor,  # (batch,)
+                            tgt_y_a: torch.Tensor,  # (batch,x)
+                            pred_y_bp: torch.Tensor,  # (batch,)
+                            return_detail=False,
+                            ):
     tgt_y_bp = tgt_y_a[:, -1]
     tgt_y = tgt_y_bp / src_cp
     pred_y = pred_y_bp / src_cp
@@ -53,13 +61,60 @@ def eval_predict(src_cp: torch.Tensor,  # (batch,)
                                 pred_y_percent, tgt_y_percent, percent_diff), dim=1)
         detail = pd.DataFrame(detail_t.numpy(), columns=pred_detail_columns)
 
-        def to_time_str(d):
-            dt = datetime.utcfromtimestamp(round(d))
-            return dt.isoformat(sep=' ', timespec='minutes')
-
         detail['time'] = detail['time'].apply(to_time_str)
 
     return hit_count, s_pred_count, s_hit_count, detail
+
+
+def eval_predict_classification(src_cp: torch.Tensor,  # (batch,)
+                                tgt_y_a: torch.Tensor,  # (batch,x)
+                                pred_y: torch.Tensor,  # (batch,) # dtype=long
+                                label_y: torch.Tensor,  # (batch,) # dtype=long
+                                return_detail=False,
+                                ):
+    tgt_y_bp = tgt_y_a[:, -1]
+    tgt_y = tgt_y_bp / src_cp
+    hit = pred_y == label_y
+    hit_count = torch.sum(hit)
+    s_mask = pred_y != 1
+    s_pred_count = torch.sum(s_mask)
+
+    s_hit = hit.clone()
+    s_hit[~s_mask] = 0
+
+    s_hit_count = torch.sum(s_hit)
+    detail = None
+
+    if return_detail:
+        bp = tgt_y_a[:, -2]
+        ts = tgt_y_a[:, -3]
+        close_p = src_cp * bp
+        tgt_p = tgt_y_bp * bp
+        tgt_y_percent = (tgt_y - 1) * 100
+        detail_t = torch.stack((ts, close_p, tgt_p, tgt_y_percent, label_y, pred_y, hit, s_hit), dim=1)
+        detail = pd.DataFrame(detail_t.numpy(), columns=c_pred_detail_columns)
+
+        def cn(c):
+            return ['<', '=', '>'][round(c)]
+
+        detail['time'] = detail['time'].apply(to_time_str)
+        detail['pred'] = detail['pred'].apply(cn)
+        detail['label'] = detail['label'].apply(cn)
+
+    return hit_count, s_pred_count, s_hit_count, detail
+
+
+def eval_predict(src_cp: torch.Tensor,  # (batch,)
+                 tgt_y_a: torch.Tensor,  # (batch,x)
+                 pred_y: torch.Tensor,  # (batch,)
+                 label_y: torch.Tensor = None,  # (batch,)
+                 return_detail=False,
+                 classify=False,
+                 ):
+    if classify:
+        return eval_predict_classification(src_cp, tgt_y_a, pred_y, label_y, return_detail=return_detail)
+
+    return eval_predict_regression(src_cp, tgt_y_a, pred_y, return_detail=return_detail)
 
 
 def run_batch(model,
@@ -68,20 +123,31 @@ def run_batch(model,
               encoder=False,
               device=None
               ):
-    src = batch.src.to(device, dtype=torch.float)
-    src_mask = batch.src_mask.to(device, dtype=torch.float) if batch.src_mask is not None else None
+    dtype = torch.float
+    src = batch.src.to(device, dtype=dtype)
+    src_mask = batch.src_mask.to(device, dtype=dtype) if batch.src_mask is not None else None
     if encoder:
-        tgt = src.clone().to(device, dtype=torch.float)
-        tgt_mask = src_mask.clone().to(device, dtype=torch.float) if src_mask is not None else None
+        tgt = src.clone().to(device, dtype=dtype)
+        tgt_mask = src_mask.clone().to(device, dtype=dtype) if src_mask is not None else None
         out = model.forward(src, tgt, src_mask, tgt_mask)
     else:
         out = model.forward(src, src_mask)
-    out = loss_compute.generator(out)  # (batch,)
+    out = loss_compute.generator(out)  # (batch,) or (batch,n)
     pred_y = out.clone().detach()
-    tgt_y = batch.tgt_y.to(out.device, dtype=torch.float)
-    loss = loss_compute(out, tgt_y, batch.n_seqs.to(out.device))
-
-    return loss, pred_y
+    # f1_close: -1
+    label_y = batch.tgt_y[:, -1]
+    if loss_compute.generator.is_classifier:
+        src_cp = batch.src[:, -1, SRC_CP_IDX]
+        pr = label_y / src_cp
+        cr = classify_centre_percent / 100
+        label_y = torch.ones(pr.size(0), dtype=torch.long)
+        label_y[pr < (1 - cr)] = 0
+        label_y[pr > (1 + cr)] = 2
+        pred_y = torch.argmax(pred_y, -1)
+    else:
+        label_y = label_y.to(dtype=dtype)
+    loss = loss_compute(out, label_y.to(out.device), batch.n_seqs.to(out.device))
+    return loss, label_y, pred_y
 
 
 def run_step(data_iter,
@@ -101,30 +167,37 @@ def run_step(data_iter,
     val_s_hit_count = 0
     pred_detail = None
     last_eval_predict_input = None
+    is_classifier = loss_compute.generator.is_classifier
     for i, batch in enumerate(data_iter):
         seq_count = batch.src.size(0)
-        loss, pred_y = run_batch(model, batch, loss_compute, encoder, device)
+        loss, label_y, pred_y = run_batch(model, batch, loss_compute, encoder, device)
         tgt_y = batch.tgt_y
         total_loss += loss
         total_seqs += batch.n_seqs
         total_batches += 1
         if not model.training:
             src_cp = batch.src[:, -1, SRC_CP_IDX]
-            hit_count, s_pred_count, s_hit_count, _detail = eval_predict(src_cp, tgt_y.to(src_cp.device),
-                                                                         pred_y.to(src_cp.device),
-                                                                         return_detail=False
+            hit_count, s_pred_count, s_hit_count, _detail = eval_predict(src_cp,
+                                                                         tgt_y,
+                                                                         pred_y,
+                                                                         label_y=label_y,
+                                                                         return_detail=False,
+                                                                         classify=is_classifier
                                                                          )
-            last_eval_predict_input = (src_cp, tgt_y, pred_y)
+            last_eval_predict_input = (src_cp, tgt_y, label_y, pred_y)
             val_hit_count += hit_count
             val_seqs_count += seq_count
             val_s_pred_count += s_pred_count
             val_s_hit_count += s_hit_count
 
     if not model.training and total_batches > 0 and print_pred_detail:
-        src_cp, tgt_y, pred_y = last_eval_predict_input
-        hit_count, s_pred_count, s_hit_count, detail = eval_predict(src_cp, tgt_y.to(src_cp.device),
-                                                                    pred_y.to(src_cp.device),
-                                                                    return_detail=True
+        src_cp, tgt_y, label_y, pred_y = last_eval_predict_input
+        hit_count, s_pred_count, s_hit_count, detail = eval_predict(src_cp,
+                                                                    tgt_y,
+                                                                    pred_y,
+                                                                    label_y=label_y,
+                                                                    return_detail=True,
+                                                                    classify=is_classifier
                                                                     )
         if detail is not None:
             print()
@@ -261,8 +334,9 @@ def gen_model_name(
     bt = 'x2' if encoder else ''
     coin = dsc.symbol.lower().replace('usdt', '')
     input_props = f'{coin}-{dsc.interval}-sl{dsc.seq_len}-di{mc.d_input}'
+    mt = f'c{mc.classify_n}' if mc.classify else 'r'
     postfix = f'-{postfix}' if postfix is not None else ''
-    return f'{input_props}-dm{mc.d_model}-h{mc.heads}-b{mc.blocks}{bt}-df{mc.d_ff}-dg{mc.d_gen_ff}{postfix}'
+    return f'{input_props}-dm{mc.d_model}-h{mc.heads}-b{mc.blocks}{bt}-df{mc.d_ff}-dg{mc.d_gen_ff}-{mt}{postfix}'
 
 
 def train_and_log(model,

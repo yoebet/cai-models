@@ -2,7 +2,8 @@ import copy, math
 import torch
 from torch import nn
 from tm.model.model_config import ModelConfig
-from tm.model.model_util import clones, Generator, LayerNorm, SublayerConnection, attention, PositionWiseFeedForward
+from tm.model.model_util import clones, Generator, Classifier, LayerNorm, SublayerConnection, attention, \
+    PositionWiseFeedForward
 
 
 class Transformer(nn.Module):
@@ -207,6 +208,11 @@ def make_model(config: ModelConfig,
     d_ff = config.d_ff
     d_gen_ff = config.d_gen_ff
 
+    if config.classify:
+        generator = Classifier(d_model, d_gen_ff=d_gen_ff, device=device, n=config.classify_n)
+    else:
+        generator = Generator(d_model, d_gen_ff=d_gen_ff, device=device)
+
     attn = MultiHeadedAttention(heads, d_model, device=device)
     ff = PositionWiseFeedForward(d_model, d_ff, dropout, device=device)
     position = PositionalEncoding(d_model, dropout, max_len=max_len, device=device)
@@ -219,8 +225,8 @@ def make_model(config: ModelConfig,
         nn.Sequential(nn.Linear(d_input, d_model, dtype=torch.float, device=device), c(position)),
         # tgt_pe
         nn.Sequential(nn.Linear(d_input, d_model, dtype=torch.float, device=device), c(position)),
-        # generator
-        Generator(d_model, d_gen_ff=d_gen_ff, device=device))
+        generator
+    )
     for p in model.parameters():
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
