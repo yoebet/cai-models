@@ -15,15 +15,20 @@ SRC_CP_IDX = 7
 pred_percent_threshold = 0.2  # 0.2%
 classify_centre_percent = 0.2  # 0.2%
 
-pred_detail_columns = ['time', 'curr_p', 'tgt_p', 'pred_p', 'hit?', 's_hit?',
-                       'pred_percent', 'tgt_percent', 'percent_diff']
+pred_detail_columns = ['time', 'curr_p', 'tgt_p', 'pred_p', 'hit?', 's_hit?', 'pred%', 'tgt%', 'diff%']
 
-c_pred_detail_columns = ['time', 'curr_p', 'tgt_p', 'tgt_percent', 'label', 'pred', 'hit?', 's_hit?']
+c_pred_detail_columns = ['time', 'curr_p', 'tgt_p', 'tgt%', 'label', 'pred', 'hit?', 's_hit?']
 
 
 def to_time_str(d):
     dt = datetime.utcfromtimestamp(round(d))
     return dt.isoformat(sep=' ', timespec='minutes')
+
+
+def hn(h):
+    if h == -1:
+        return ''
+    return '1' if h == 1 else '0'
 
 
 def eval_predict_regression(src_cp: torch.Tensor,  # (batch,)
@@ -39,12 +44,15 @@ def eval_predict_regression(src_cp: torch.Tensor,  # (batch,)
     pred_ud = pred_y >= 1.0
     hit = tgt_y_ud == pred_ud
     hit_count = torch.sum(hit)
+    hit = hit.to(dtype=torch.int)
 
     s_threshold = pred_percent_threshold / 100
-    s_pred_y = (pred_y - 1).abs() > s_threshold
-    s_pred_count = torch.sum(s_pred_y)
-    s_hit = hit[s_pred_y]
+    s_mask = (pred_y - 1).abs() <= s_threshold
+    s_pred_count = torch.sum(~s_mask)
+    s_hit = hit.clone()
+    s_hit[s_mask] = 0
     s_hit_count = torch.sum(s_hit)
+    s_hit[s_mask] = -1
 
     detail = None
 
@@ -57,11 +65,13 @@ def eval_predict_regression(src_cp: torch.Tensor,  # (batch,)
         tgt_y_percent = (tgt_y - 1) * 100
         pred_y_percent = (pred_y - 1) * 100
         percent_diff = pred_y_percent - tgt_y_percent
-        detail_t = torch.stack((ts, close_p, tgt_p, pred_p, hit, s_pred_y,
+        detail_t = torch.stack((ts, close_p, tgt_p, pred_p, hit, s_hit,
                                 pred_y_percent, tgt_y_percent, percent_diff), dim=1)
         detail = pd.DataFrame(detail_t.numpy(), columns=pred_detail_columns)
 
         detail['time'] = detail['time'].apply(to_time_str)
+        detail['hit?'] = detail['hit?'].apply(hn)
+        detail['s_hit?'] = detail['s_hit?'].apply(hn)
 
     return hit_count, s_pred_count, s_hit_count, detail
 
@@ -76,13 +86,15 @@ def eval_predict_classification(src_cp: torch.Tensor,  # (batch,)
     tgt_y = tgt_y_bp / src_cp
     hit = pred_y == label_y
     hit_count = torch.sum(hit)
-    s_mask = pred_y != 1
-    s_pred_count = torch.sum(s_mask)
+    s_mask = (pred_y == 1) | (label_y == 1)
+    s_pred_count = torch.sum(~s_mask)
 
+    hit = hit.to(dtype=torch.int)
     s_hit = hit.clone()
-    s_hit[~s_mask] = 0
-
+    s_hit[s_mask] = 0
     s_hit_count = torch.sum(s_hit)
+    # s_hit = s_hit.to(dtype=torch.int)
+    s_hit[s_mask] = -1
     detail = None
 
     if return_detail:
@@ -100,6 +112,8 @@ def eval_predict_classification(src_cp: torch.Tensor,  # (batch,)
         detail['time'] = detail['time'].apply(to_time_str)
         detail['pred'] = detail['pred'].apply(cn)
         detail['label'] = detail['label'].apply(cn)
+        detail['hit?'] = detail['hit?'].apply(hn)
+        detail['s_hit?'] = detail['s_hit?'].apply(hn)
 
     return hit_count, s_pred_count, s_hit_count, detail
 
@@ -147,7 +161,7 @@ def run_batch(model,
     else:
         label_y = label_y.to(dtype=dtype)
     loss = loss_compute(out, label_y.to(out.device), batch.n_seqs.to(out.device))
-    return loss, label_y, pred_y
+    return loss, label_y, pred_y.to(label_y.device)
 
 
 def run_step(data_iter,

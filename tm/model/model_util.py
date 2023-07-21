@@ -22,14 +22,16 @@ class Generator(nn.Module):
         self.proj = nn.Linear(d_model, d_gen_ff, device=device)
         self.proj2 = nn.Linear(d_gen_ff, 1, device=device)
         # self.dropout = nn.Dropout(dropout)
+        self.layer_norm = nn.LayerNorm(d_gen_ff, device=device)
 
     def forward(self,
                 x  # (batch,seq_len,d_model)
                 ):
-        x = x[:, -1, :]  # (batch,d_model)
-        fx = self.proj(x)
+        fx = x[:, -1, :]  # (batch,d_model)
+        fx = self.proj(fx)
         # fx = self.dropout(fx)
         fx = F.sigmoid(fx)
+        fx = self.layer_norm(fx)
         fx = self.proj2(fx)
         # (batch,1)
         fx = fx.squeeze(-1)
@@ -48,19 +50,25 @@ class Classifier(nn.Module):
                  n=3,
                  ):
         super(Classifier, self).__init__()
-        self.proj = nn.Linear(d_model, n, device=device)
-        # self.proj2 = nn.Linear(d_gen_ff, n, device=device)
+        self.proj = nn.Linear(d_model, n, bias=False, device=device)
+        # self.proj2 = nn.Linear(d_gen_ff, n, bias=False, device=device)
         # self.dropout = nn.Dropout(dropout)
+        # self.leaky_relu = nn.LeakyReLU(0.02)
+        # self.layer_norm = nn.LayerNorm(d_gen_ff, device=device)
         self.n = n
 
     def forward(self,
                 x  # (batch,seq_len,d_model)
                 ):
-        x = x[:, -1, :]  # (batch,d_model)
-        fx = self.proj(x)
+        # fx = x[:, -1, :]  # (batch,d_model)
+        fx = x.mean(1)
+        fx = self.proj(fx)
         # fx = self.dropout(fx)
-        fx = F.sigmoid(fx)
+        # fx = F.sigmoid(fx)
+        # fx = self.leaky_relu(fx)
+        # fx = self.layer_norm(fx)
         # fx = self.proj2(fx)
+        # fx = F.sigmoid(fx)
         # (batch,n)
         # fx = F.softmax(fx, dim=-1)
         # fx = F.log_softmax(fx, dim=-1)
@@ -79,7 +87,8 @@ class LayerNorm(nn.Module):
                 ):
         mean = x.mean(-1, keepdim=True)
         std = x.std(-1, keepdim=True)
-        return self.a_2.to(x.device) * (x - mean) / (std + self.eps) + self.b_2.to(x.device)
+        self.to(x.device)
+        return self.a_2 * (x - mean) / (std + self.eps) + self.b_2
 
 
 class SublayerConnection(nn.Module):

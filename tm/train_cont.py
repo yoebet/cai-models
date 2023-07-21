@@ -46,7 +46,7 @@ def main(
         encoder = False
 
     if model_type is not None:
-        if model_type == 'decoder_only':
+        if model_type == 'trd':
             encoder = False
         else:
             encoder = True

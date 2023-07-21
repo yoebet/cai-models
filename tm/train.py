@@ -14,7 +14,7 @@ def main(epochs: int = 10,
          steps: int = None,
          symbol='ETHUSDT',
          kl_interval='1h',
-         model_type='encoder_decoder',  # decoder_only/encoder_decoder
+         model_type='tred',  # decoder_only/encoder_decoder
          classify=True,
          total_blocks=6,
          seq_len=32,
@@ -52,14 +52,13 @@ def main(epochs: int = 10,
         ds_split_method_name=ds_split_method_name,
     )
 
-    if model_type == 'decoder_only':
+    if model_type == 'trd':
         blocks = total_blocks
         encoder = False
-        model_dir = 'mdo'
     else:
         blocks = total_blocks // 2
         encoder = True
-        model_dir = 'med'
+    model_dir = model_type
 
     d_input = get_d_input_by_interval(kl_interval)
     mc = ModelConfig(
@@ -73,7 +72,7 @@ def main(epochs: int = 10,
     artifacts_dir = f'{out_dir}/artifacts/{model_dir}'
     cp_base_dir = artifacts_dir
 
-    if model_type == 'decoder_only':
+    if model_type == 'trd':
         model = make_decoder_only_model(mc, device=device)
     else:  # encoder_decoder
         model = make_encoder_decoder_model(mc, device=device)
